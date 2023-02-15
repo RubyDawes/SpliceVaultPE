@@ -34,6 +34,25 @@ Possible pseudo-exons are then ranked according to how many GTEx samples they co
 
 ## Results
 
-Final calculated candidate pseudo-exons are stored in [data/final/SpliceVaultPE_gtexv2.tsv.gz](data/final/SpliceVaultPE_gtexv2.tsv.gz)/.
+Final calculated candidate pseudo-exons are stored in [data/final/SpliceVaultPE_gtexv2.tsv.gz](data/final/SpliceVaultPE_gtexv2.tsv.gz)/. Calculated in hg38
+
+
+
+| Column Name          | Description                                                  |
+| -------------------- | ------------------------------------------------------------ |
+| border_match_intron  | The MANE annotated intron within which the candidate pseudo-exon would be. format: *transcriptId*_ int _*intronNumber* e.g. ENST00000357033.9_int_1 for the first intron of DMD. |
+| chrom                | Chromosome                                                   |
+| strand               | strand (+ or -)                                              |
+| annotated_start      | genomic position of the start of the annotated intron        |
+| annotated_end        | genomic position of the end of the annotated intron          |
+| PE_start             | genomic position of the start of the candidate pseudo-exon   |
+| PE_end               | genomic position of the end of the candidate pseudo-exon     |
+| PE_length            | distance between PE_start and PE_end                         |
+| sample_overlap       | Each pseudo-exon is represented by two split-reads. sample_overlap is the number of samples in which both of these split-reads are seen in at least 1 read. |
+| prop_samples_overlap | sample_overlap / min(samples containing first split-read, samples containing second split-read) |
+| sample_count_ann     | The number of samples in which the annotated intron was seen in at least 1 read. |
+| prop_samples_ann     | sample_overlap / sample_count_ann                            |
+
+
 
 ## 
