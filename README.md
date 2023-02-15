@@ -52,6 +52,7 @@ Final calculated candidate pseudo-exons are stored in [data/final/SpliceVaultPE_
 | prop_samples_overlap | sample_overlap / min(samples containing first split-read, samples containing second split-read) |
 | sample_count_ann     | The number of samples in which the annotated intron was seen in at least 1 read. |
 | prop_samples_ann     | sample_overlap / sample_count_ann                            |
+| PE_rank              | rank of the candidate pseudo-exon per intron. Ranked according to prop_samples_overlap. |
 
 
 
