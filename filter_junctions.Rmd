@@ -1,0 +1,93 @@
+---
+title: "R Notebook"
+output: 
+---
+
+```{r}
+library(data.table)
+library(tidyverse)
+library(GenomicRanges)
+library(gUtils)
+library(GenomicFeatures)
+```
+
+```{r}
+gtexv2_jx = fread('utils/gtexv2/junctions_1to22XY_gtexv2.tsv.gz', col.names = c('chr', 'start', 'end', 'strand', 'left_motif', 'right_motif', 'max_reads'))
+gtexv2_jx = gtexv2_jx[strand != '?']
+```
+
+
+
+
+```{r}
+if (!file.exists("utils/mane_txd.sqlite.gz")) {
+  mane_txdb <- makeTxDbFromGFF("https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/release_1.0/MANE.GRCh38.v1.0.ensembl_genomic.gff.gz")
+  saveDb(mane_txdb, "utils/mane_txdb.sqlite.gz")
+}
+
+# refseq hg19 tx info
+mane_txdb <- loadDb("utils/mane_txdb.sqlite.gz")
+
+mane_introns <- intronsByTranscript(mane_txdb, use.names = T)
+
+mane_introns_dt = as.data.table(mane_introns)
+mane_introns_dt[, intron_no := rowid(group)]
+mane_introns_dt[strand == '-', intron_no := -(intron_no - max(intron_no) - 1), by = .(group)]
+mane_introns_dt[, intron_id := paste(group_name, '_int_', intron_no, sep = '')]
+
+mane_introns = GRanges(mane_introns_dt)
+```
+
+# filtering GTEx junctions to those within MANE introns, with either start or end matching the annotated splice-site
+
+```{r}
+gtexv2_jx_granges = GRanges(gtexv2_jx)
+
+# find entries within MANE annotated introns (inclusive of start and end i.e. matching splice-sites)
+gtexv2_jx_introns_hits = findOverlaps(gtexv2_jx_granges, mane_introns, type = 'within')
+gtexv2_jx_granges_filt = gtexv2_jx_granges[from(gtexv2_jx_introns_hits)]
+# annotate filtered set with which intron it falls within
+mane_introns_within_hits = as.data.table(mane_introns[to(gtexv2_jx_introns_hits)])
+mcols(gtexv2_jx_granges_filt, level="within")$within_intron <- mane_introns_within_hits$intron_id
+
+# put aside entries for annotated introns for now
+annotated_introns_hits = findOverlaps(gtexv2_jx_granges_filt, mane_introns, type = 'equal')
+gtexv2_jx_granges_ann = gtexv2_jx_granges_filt[from(annotated_introns_hits)]
+gtexv2_jx_granges_filt = gtexv2_jx_granges_filt[setdiff(1:length(gtexv2_jx_granges_filt), from(annotated_introns_hits))]
+
+# find entries with either start or end matching annotated splice-site
+start_overlap_hits = findOverlaps(gtexv2_jx_granges_filt, mane_introns, type = 'start')
+end_overlap_hits = findOverlaps(gtexv2_jx_granges_filt, mane_introns, type = 'end')
+# annotate filtered set with which intron it matches the start of
+gtexv2_jx_granges_filt_start = gtexv2_jx_granges_filt[from(start_overlap_hits)]
+mane_introns_start_hits = as.data.table(mane_introns[to(start_overlap_hits)])
+mcols(gtexv2_jx_granges_filt_start, level="within")$which_match <- 'start'
+mcols(gtexv2_jx_granges_filt_start, level="within")$border_match_intron <- mane_introns_start_hits$intron_id
+# annotate filtered set with which intron it matches the end of
+gtexv2_jx_granges_filt_end = gtexv2_jx_granges_filt[from(end_overlap_hits)]
+mane_introns_end_hits = as.data.table(mane_introns[to(end_overlap_hits)])
+mcols(gtexv2_jx_granges_filt_end, level="within")$which_match <- 'end'
+mcols(gtexv2_jx_granges_filt_end, level="within")$border_match_intron <- mane_introns_end_hits$intron_id
+```
+
+```{r}
+gtexv2_jx_granges_filt = append(gtexv2_jx_granges_filt_start, gtexv2_jx_granges_filt_end)
+gtexv2_jx_granges_filt = as.data.table(gtexv2_jx_granges_filt)
+setorder(gtexv2_jx_granges_filt, within_intron)
+gtexv2_jx_granges_filt = gtexv2_jx_granges_filt[border_match_intron %in% 
+                         gtexv2_jx_granges_filt[, .(n_types = length(unique(which_match))), 
+                       by = border_match_intron][n_types == 2, border_match_intron]]
+gtexv2_jx_granges_filt = gtexv2_jx_granges_filt[within_intron == border_match_intron]
+
+gtexv2_jx_granges_filt[, PE_pos := ifelse(which_match == 'start', end, start)]
+
+starts = gtexv2_jx_granges_filt[which_match == 'start', .(seqnames, annotated_start = start, PE_start = end, strand, border_match_intron)]
+ends = gtexv2_jx_granges_filt[which_match == 'end', .(seqnames, PE_end = start, annotated_end = end, strand, border_match_intron)]
+
+join = starts[ends, on = .(seqnames, strand, border_match_intron), allow.cartesian = TRUE]
+join[, PE_length := PE_end - PE_start ]
+join = join[PE_length > 0]
+fwrite(join, 'data/interim/candidate_PEs.tsv.gz', sep = '\t')
+```
+
+

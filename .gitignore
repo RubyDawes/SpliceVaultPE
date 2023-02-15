@@ -1,0 +1,31 @@
+# History files
+.Rhistory
+.Rapp.history
+
+# Session Data files
+.RData
+.RDataTmp
+
+# User-specific files
+.Ruserdata
+*.Rproj
+
+# RStudio files
+.Rproj.user/
+
+# R Environment Variables
+.Renviron
+
+# Big files
+utils/gtexv2/*
+utils/srav3/*
+utils/mane_txdb.sqlite.gz
+utils/gtexv2/junctions_1to22XY_gtexv2_samples.tsv.gz
+utils/gtexv2/junctions.bgz
+utils/gtexv2/junctions_1to22XY_gtexv2.tsv.gz
+utils/gtexv2/sample_files/*
+data/interim/*
+Data/final/by_chrom/*
+
+# Mac files
+*.DS_Store

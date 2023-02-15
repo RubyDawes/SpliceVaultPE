@@ -1,0 +1,88 @@
+---
+title: "R Notebook"
+output: 
+---
+
+```{r}
+library(data.table)
+library(tidyverse)
+library(parallel)
+library(digest)
+library(stringi)
+library(futile.logger)
+numCores <- detectCores()
+join= fread('data/interim/candidate_PEs.tsv.gz')
+```
+
+```{r}
+for (chrom in rev(paste0('chr', c(1:22, 'X', 'Y')))) {
+  join_filt = join[seqnames == chrom]
+  flog.info(paste0("Reading in samples file for ", chrom))
+  flog.info(Sys.time())
+  samples = fread(paste0('utils/gtexv2/sample_files/junctions_', chrom, '_gtexv2_samples.tsv.gz'), col.names = c('chr', 'start', 'end', 'strand', 'sample_id'))
+  samples[, sj_id := sapply(samples[, paste(chr, start, end, strand, sep = ':')], digest, algo = "md5") ]
+  
+  join_filt[, sj_id_left := sapply(join_filt[, paste(seqnames, annotated_start, PE_start, strand, sep = ':')], digest, algo = "md5")]
+  join_filt[, sj_id_right := sapply(join_filt[, paste(seqnames, PE_end, annotated_end, strand, sep = ':')], digest, algo = "md5")]
+  
+  intron_dict = rbind(unique(join_filt[, .(sj_id = sj_id_left, border_match_intron)]), 
+                      unique(join_filt[, .(sj_id = sj_id_right, border_match_intron)]))
+  
+  flog.info("Retrieving sample IDs for candidate pseudoexons")
+  flog.info(Sys.time())
+  query_results = samples[sj_id %in% intron_dict$sj_id][!is.na(chr)]
+  query_results[, sample_list := strsplit(substr(sample_id, 2, nchar(sample_id)), ",")]
+  query_results[, sample_list := sapply(sample_list, function(x) as.numeric(gsub(':.*$', '',x)))]
+  
+  join_filt = query_results[, .(sj_id_left = sj_id, sample_list_left = sample_list)][join_filt, on = .(sj_id_left)]
+  join_filt = query_results[, .(sj_id_right = sj_id, sample_list_right = sample_list)][join_filt, on = .(sj_id_right)]
+  
+  flog.info("Calculating overlapping sample counts for each candidate pseudoexon")
+  flog.info(Sys.time())
+  join_filt[, sample_overlap := unlist(mclapply(1:nrow(join_filt), function(x) {length(intersect(sample_list_left[[x]], sample_list_right[[x]]))}, mc.cores = numCores))]
+  join_filt = join_filt[sample_overlap > 0]
+  join_filt[, left_sample_count := lengths(join_filt$sample_list_left)]
+  join_filt[, right_sample_count := lengths(join_filt$sample_list_right)]
+  
+  setorder(join_filt, border_match_intron, -sample_overlap)
+  
+  flog.info("Retrieving sample counts for annotated introns")
+  flog.info(Sys.time())
+  join_filt[, sj_id_ann := sapply(join_filt[, paste(seqnames, annotated_start, annotated_end, strand, sep = ':')], digest, algo = "md5")]
+  samples_ann = samples[sj_id %in% unique(join_filt$sj_id_ann)]
+  samples_ann[, sample_count := stri_count_fixed(sample_id, ',')]
+  join_filt = samples_ann[, .(sj_id_ann = sj_id, sample_count_ann = sample_count)][join_filt, on = .(sj_id_ann)]
+  join_filt[is.na(sample_count_ann), sample_count_ann := 0]
+  
+  filename = paste0('data/final/by_chrom/splicevaultPE', chrom, '.tsv.gz')
+  flog.info(Sys.time())
+  flog.info(paste0("Tidying results and writing to file - ", filename))
+  join_filt[, prop_samples_overlap := sample_overlap / min(left_sample_count, right_sample_count), by = 1:nrow(join_filt)]
+  join_filt[, prop_samples_ann := sample_overlap / sample_count_ann]
+  splicevaultPE = join_filt[, .(border_match_intron, chrom = seqnames, strand, annotated_start, annotated_end, PE_start, PE_end, PE_length, sample_overlap, prop_samples_overlap, sample_count_ann, prop_samples_ann)]
+  fwrite(splicevaultPE, filename, sep = '\t')
+}
+```
+
+```{r}
+filepath = "data/final/by_chrom/"
+chrom_sep_files = list.files(path = filepath)
+SVPE_list <- lapply(paste0(filepath, chrom_sep_files), fread, sep="\t")
+SpliceVaultPE <- rbindlist( SVPE_list )
+setorder(SpliceVaultPE, chrom, border_match_intron, -sample_overlap)
+SpliceVaultPE[, PE_rank := rowid(border_match_intron)]
+fwrite(SpliceVaultPE, "data/final/SpliceVaultPE_gtexv2.tsv.gz", sep = '\t')                        
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
