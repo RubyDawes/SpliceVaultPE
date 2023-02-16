@@ -12,6 +12,7 @@ library(stringi)
 library(futile.logger)
 numCores <- detectCores()
 join= fread('data/interim/candidate_PEs.tsv.gz')
+options(scipen=999)
 ```
 
 ```{r}
@@ -75,14 +76,23 @@ fwrite(SpliceVaultPE, "data/final/SpliceVaultPE_gtexv2.tsv.gz", sep = '\t')
 ```
 
 
+# bed file format
+
+```{r}
+SpliceVaultPE = fread("data/final/SpliceVaultPE_gtexv2.tsv.gz")
+setorder(SpliceVaultPE, chrom, PE_start)
+
+SpliceVaultPE_bed = SpliceVaultPE[, .(chrom, chromStart = PE_start - 1, chromEnd = PE_end, name = paste0(border_match_intron, '_rank_', PE_rank), score = as.integer(1000*(1/PE_rank)), strand)]
+fileConn<-file('data/final/SpliceVaultPE.bed')
+writeLines('track name=SpliceVaultPE description="SpliceVault Pseudo-Exons" useScore=1', fileConn)
+close(fileConn)
+fwrite(SpliceVaultPE_bed, 'data/final/SpliceVaultPE.bed', col.names = FALSE, sep = '\t', append = TRUE)
+
+SpliceVaultPE_bed_top1 = SpliceVaultPE[PE_rank == 1, .(chrom, chromStart = PE_start - 1, chromEnd = PE_end, name = paste0(border_match_intron, '_rank_', PE_rank), strand)]
+fwrite(SpliceVaultPE_bed_top1, 'data/final/SpliceVaultPE_top1.bed', col.names = FALSE, sep = '\t', append = TRUE)
 
 
-
-
-
-
-
-
+```
 
 
 
