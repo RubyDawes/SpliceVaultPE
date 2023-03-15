@@ -1,0 +1,56 @@
+---
+title: "R Notebook"
+output: 
+---
+
+
+```{r}
+library(data.table)
+library(tidyverse)
+library(data.table)
+library(AnnotationDbi)
+library(GenomicFeatures)
+SpliceVaultPE = fread("data/final/SpliceVaultPE_gtexv2.tsv.gz")
+SpliceVaultPE[, tx_id := NULL]
+SpliceVaultPE[, alternate_exon := NULL]
+```
+
+```{r}
+
+if (!file.exists("utils/ensembl_108_txdb.sqlite.gz")) {
+  download.file("ftp://ftp.ensembl.org/pub/release-108/gff3/homo_sapiens/Homo_sapiens.GRCh38.108.gff3.gz", "utils/Homo_sapiens.GRCh38.108.gff3.gz")
+  ENS108_txdb <- makeTxDbFromGFF("utils/Homo_sapiens.GRCh38.108.gff3.gz", format = 'gff3')
+  saveDb(ENS108_txdb, "utils/ensembl_108_txdb.sqlite.gz")
+  unlink("utils/Homo_sapiens.GRCh38.108.gff3.gz")
+}
+ens_db = loadDb("utils/ensembl_108_txdb.sqlite.gz")
+ens_exons = GenomicFeatures::exonsBy(ens_db, by = 'tx', use.names = TRUE)
+
+ens_exons_dt = as.data.table(ens_exons)
+ens_exons_dt = ens_exons_dt[, .(tx_id = group_name, chrom = paste0('chr',seqnames), PE_start = start - 1, PE_end = end + 1, strand)]
+ens_exons_dt = ens_exons_dt[, .(tx_id = paste(tx_id, collapse = ',')), by = .(chrom, PE_start, PE_end, strand)]
+
+
+SpliceVaultPE = ens_exons_dt[SpliceVaultPE, on = .(chrom, PE_start, PE_end, strand)]
+
+SpliceVaultPE[, alternate_exon := ifelse(is.na(tx_id), 0, 1)]
+SpliceVaultPE%>% group_by(PE_rank, alternate_exon) %>% tally() %>% ungroup() %>% group_by(PE_rank) %>% mutate(perc = (n / sum(n)) * 100) %>%
+  filter(alternate_exon == 1 & PE_rank <= 10) %>% 
+  ggplot(aes(x = PE_rank, y = perc)) + geom_bar(stat = 'identity')
+
+
+
+SpliceVaultPE[alternate_exon == 0, unann_PE_rank := rowid(border_match_intron)]
+SpliceVaultPE = SpliceVaultPE[, .(chrom, PE_start, PE_end, PE_length, strand, border_match_intron,
+                                  PE_rank,unann_PE_rank,
+                                  annotated_start, annotated_end, 
+                                  sample_overlap, prop_samples_overlap, sample_count_ann, prop_samples_ann,
+                                  alternate_exon, tx_id)]
+fwrite(SpliceVaultPE, "data/final/SpliceVaultPE_gtexv2.tsv.gz")
+```
+
+
+
+
+
+
