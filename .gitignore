@@ -26,6 +26,8 @@ utils/gtexv2/junctions_1to22XY_gtexv2.tsv.gz
 utils/gtexv2/sample_files/*
 data/interim/*
 Data/final/by_chrom/*
-
+*.bed
+*.gz
+*.idx
 # Mac files
 *.DS_Store
