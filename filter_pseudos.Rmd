@@ -1,0 +1,26 @@
+---
+title: "R Notebook"
+output: 
+---
+
+```{r}
+library(data.table)
+library(tidyverse)
+SpliceVaultPE = fread("data/final/SpliceVaultPE_gtexv2.tsv.gz")
+```
+
+
+# common sense filters
+- coverage- annotated intron sample count is > 5th %ile
+- alternate exon == 0 - 'pseudoexon' is not in any alternate transcript
+- PE_length < 500 - inferred pseudoexon length is < 500
+- sample_pverlap > 100- total samples containing the pseudoexon is > 100
+
+```{r}
+SpliceVaultPE_filt = SpliceVaultPE%>% filter(sample_count_ann > quantile(SpliceVaultPE$sample_count_ann, probs = c(0.05)) &
+                          alternate_exon == 0 & PE_length < 500)  %>%
+  arrange(-prop_samples_ann) %>% filter(sample_overlap > 100)
+
+fwrite(SpliceVaultPE_filt, 'data/final/SpliceVaultPE_gtexv2_filt.tsv', sep = '\t')
+```
+
