@@ -31,3 +31,5 @@ Data/final/by_chrom/*
 *.idx
 # Mac files
 *.DS_Store
+data/final/SpliceVaultPE_gtexv2_filt.tsv
+data/final/file_sample.csv

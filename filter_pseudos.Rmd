@@ -24,3 +24,25 @@ SpliceVaultPE_filt = SpliceVaultPE%>% filter(sample_count_ann > quantile(SpliceV
 fwrite(SpliceVaultPE_filt, 'data/final/SpliceVaultPE_gtexv2_filt.tsv', sep = '\t')
 ```
 
+```{r}
+ggplot(SpliceVaultPE_filt, aes(x = PE_length)) + geom_histogram(binwidth = 1) #+ coord_cartesian(xlim  = c(93,140))
+ggplot(SpliceVaultPE_filt, aes(x = prop_samples_overlap)) + geom_histogram(binwidth = 0.01) #+ coord_cartesian(xlim  = c(93,140))
+SpliceVaultPE_filt[prop_samples_overlap > 0.9]
+ggplot(SpliceVaultPE_filt, aes(x = prop_samples_ann)) + geom_histogram(binwidth = 0.01) + coord_cartesian(xlim  = c(0,1))
+ggplot(SpliceVaultPE_filt, aes(x = sample_overlap)) + geom_histogram(binwidth = 1)
+
+ggplot(SpliceVaultPE_filt, aes(x = sample_overlap, y =prop_samples_ann )) + geom_point()
+ggplot(SpliceVaultPE_filt, aes(x = sample_overlap, y =prop_samples_overlap )) + geom_point()
+ggplot(SpliceVaultPE_filt, aes(x = prop_samples_ann, y =prop_samples_overlap )) + geom_point()
+
+ggplot(SpliceVaultPE_filt, aes(x = PE_length, y =prop_samples_overlap )) + geom_point()
+
+```
+
+
+```{r}
+# 94,99, 119,123
+
+SpliceVaultPE_filt %>% group_by(PE_length) %>% tally() %>% filter(PE_length > 92 & PE_length < 140)
+```
+
